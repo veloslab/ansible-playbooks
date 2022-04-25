@@ -2,7 +2,6 @@
 - hosts: all
   become: true
   vars:
-    alerta_heartbeat_api_key: "{{ lookup('hashi_vault', 'secret=secret/alerta/api/heartbeat:key') }}"
     alerta_heartbeat_origin: "{{ ansible_hostname }}"
 
   tasks:
@@ -12,6 +11,3 @@
     - name: Testing 1
       debug:
         msg: "{{ alerta_heartbeat_origin }}"
-    - name: Testing
-      debug:
-        msg: "{{ ansible_hostname }}"

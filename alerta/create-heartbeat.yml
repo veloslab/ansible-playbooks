@@ -1,5 +1,5 @@
 ---
-- hosts: alerta
+- hosts: all
   become: true
   vars:
     alerta_heartbeat_api_key: "{{ lookup('hashi_vault', 'secret=secret/alerta/api/heartbeat:key') }}"

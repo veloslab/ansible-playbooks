@@ -1,13 +1,10 @@
 ---
 - hosts: all
   become: true
-  vars:
-    alerta_heartbeat_origin: "{{ ansible_hostname }}"
 
   tasks:
-    - name: Testing
-      debug:
-        msg: "{{ alerta_heartbeat_api_key }}"
-    - name: Testing 1
-      debug:
-        msg: "{{ alerta_heartbeat_origin }}"
+    - name: Install Alerta Heartbeat Service
+      include_role:
+        name: veloslab.alerta.heartbeat
+      vars:
+        alerta_heartbeat_origin: "{{ ansible_hostname }}"

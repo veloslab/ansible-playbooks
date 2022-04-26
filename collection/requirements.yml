@@ -1,0 +1,4 @@
+---
+collections:
+  - name: veloslab.alerta
+    source: git+https://github.com/veloslab/ansible-collection-alerta.git

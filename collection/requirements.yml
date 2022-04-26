@@ -1,4 +1,4 @@
 ---
 collections:
-  - name: veloslab.alerta
-    source: https://github.com/veloslab/ansible-collection-alerta
+  - name: https://github.com/veloslab/ansible-collection-alerta.git
+    type: git

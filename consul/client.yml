@@ -1,0 +1,14 @@
+---
+- hosts: consul-client
+
+  vars:
+    consul_datacenter: 'veloslab'
+    consul_encrypt: "{{ lookup('hashi_vault', 'secret=secret/data/consul/encryption_key')['key']}}"
+    consul_ca_cert: "{{ lookup('hashi_vault', 'secret=secret/data/consul/tls/ca')['certificate']}}"
+    consul_server: false
+    consul_retry_join: ["vls-consul-1.veloslab.lan", "vls-consul-2.veloslab.lan", "vls-consul-3.veloslab.lan"]
+
+  tasks:
+    - name: Deploy Consul Client
+      include_role:
+        name: veloslab.hashicorp.consul

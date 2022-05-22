@@ -1,0 +1,38 @@
+---
+- hosts: docker
+  become: true
+
+  tasks:
+    - name: Install nfs-common and autofs
+      ansible.builtin.apt:
+        state: latest
+        update_cache: true
+        force_apt_get: true
+        pkg:
+          - nfs-common
+          - autofs
+
+    - name: Adding auto.docker.nfs to /etc/auto.master
+      ansible.builtin.lineinfile:
+        path: /etc/auto.master
+        regexp: '^/- /etc/auto.docker.nfs'
+        line: '/- /etc/auto.docker.nfs'
+
+    - name: Create /etc/auto.docker.nfs
+      ansible.builtin.copy:
+        content: |
+          /mnt/docker/ -fstype=nfs4 storage.veloslab.lan:/mnt/storage/veloslab/docker/
+        dest: /etc/auto.docker.nfs
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Reload autofs
+      ansible.builtin.systemd:
+        name: autofs
+        state: reloaded
+
+    - name: Restart autofs
+      ansible.builtin.systemd:
+        name: autofs
+        state: started

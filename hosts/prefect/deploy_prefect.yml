@@ -5,31 +5,23 @@
     - veloslab.base.packages
   vars:
     python_version: '3.10'
+    prefect_cloud: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/cloud')}}"
+    prefect_vault: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/approle')}}"
 
   tasks:
-    - name: Check if Python version is installed
-      ansible.builtin.package:
-        name: 'python{{ python_version }}'
-        state: present
-      check_mode: true
-      register: python_check
-      failed_when: false
+    - name: Git checkout veloslab/prefect
+      ansible.builtin.git:
+        repo: 'https://github.com/veloslab/prefect.git'
+        dest: /veloslab/prefect/lib/
 
     - name: Install Python
       include_role:
         name: veloslab.base.python
-      when: python_check
-
-    - name: Git checkout veloslab/prefect
-      ansible.builtin.git:
-        repo: 'https://github.com/veloslab/prefect.git'
-        dest: /veloslab/prefect
 
     - name: Create prefect venv
       ansible.builtin.pip:
-        requirements: /veloslab/prefect/requirements.txt
+        requirements: /veloslab/prefect/lib/requirements.txt
         virtualenv: '/veloslab/python/prefect{{ python_version }}'
-        # virtualenv_python: 'python{{ python_version }}'
         virtualenv_command: 'python{{ python_version }} -m venv'
 
     - name: Create a symbolic link
@@ -40,3 +32,80 @@
         group: root
         state: link
         mode: 0755
+
+    - name: Create pth file for venv
+      ansible.builtin.copy:
+        dest: '/veloslab/python/prefect/lib/python{{ python_version }}/site-packages/prefect.pth'
+        owner: root
+        group: root
+        mode: 0644
+        content: '/veloslab/prefect/lib/'
+
+    - name: Install nfs-common and autofs
+      ansible.builtin.apt:
+        state: latest
+        update_cache: true
+        force_apt_get: true
+        pkg:
+          - nfs-common
+          - autofs
+
+    - name: Adding auto.prefect.nfs to /etc/auto.master
+      ansible.builtin.lineinfile:
+        path: /etc/auto.master
+        regexp: '^/- /etc/auto.prefect.nfs'
+        line: '/- /etc/auto.prefect.nfs'
+
+    - name: Create /etc/auto.prefect.nfs
+      ansible.builtin.copy:
+        content: |
+          /mnt/prefect/ -fstype=nfs4 storage.veloslab.lan:/mnt/storage/veloslab/prefect/
+        dest: /etc/auto.prefect.nfs
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Reload autofs
+      ansible.builtin.systemd:
+        name: autofs
+        state: reloaded
+
+    - name: Restart autofs
+      ansible.builtin.systemd:
+        name: autofs
+        state: started
+
+    - name: Create prefect storage symbolic link
+      ansible.builtin.file:
+        src: /mnt/prefect/storage
+        dest: /veloslab/prefect/storage
+        owner: vls_prefect
+        group: vls-admins
+        state: link
+        mode: 0770
+
+    - name: Create prefect config directory
+      ansible.builtin.file:
+        path: /home/vls_prefect
+        owner: vls_prefect
+        group: vls_prefect
+        state: directory
+        mode: 0770
+
+    - name: Deploy Prefect Agent
+      include_role:
+        name: veloslab.prefect.agent
+      vars:
+        prefect_venv: /veloslab/python/prefect
+        prefect_work_queue_name: "{{ ansible_hostname }}"
+        prefect_work_queue_id: >
+          "{{ lookup('hashi_vault',
+          'secret=secret/data/prefect/queues/{{ ansible_hostname }}')['key']}}"
+        prefect_user: vls_prefect
+        prefect_env:
+          PREFECT_API_KEY: "{{ prefect_cloud['key'] }}"
+          PREFECT_API_URL: "{{ prefect_cloud['url'] }}"
+          VAULT_ADDR: vault.veloslab.net
+          VAULT_ROLE_ID: "{{ prefect_vault['role'] }}"
+          VAULT_SECRET_ID: "{{ prefect_vault['secret'] }}"
+      when: "'prefect' in ansible_hostname"

@@ -90,7 +90,7 @@
         owner: vls_prefect
         group: vls_prefect
         state: directory
-        mode: 0770
+        mode: 0775
 
     - name: Deploy Prefect Agent
       include_role:
@@ -102,10 +102,10 @@
           "{{ lookup('hashi_vault',
           'secret=secret/data/prefect/queues/{{ ansible_hostname }}')['key']}}"
         prefect_user: vls_prefect
+        prefect_api_key: "{{ prefect_cloud['key'] }}"
+        prefect_workspace: "{{ prefect_cloud['workspace'] }}"
         prefect_env:
-          PREFECT_API_KEY: "{{ prefect_cloud['key'] }}"
-          PREFECT_API_URL: "{{ prefect_cloud['url'] }}"
-          VAULT_ADDR: vault.veloslab.net
+          VAULT_ADDR: https://vault.veloslab.net
           VAULT_ROLE_ID: "{{ prefect_vault['role'] }}"
           VAULT_SECRET_ID: "{{ prefect_vault['secret'] }}"
       when: "'prefect' in ansible_hostname"

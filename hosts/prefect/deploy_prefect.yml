@@ -7,6 +7,7 @@
     python_version: '3.10'
     prefect_cloud: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/cloud')}}"
     prefect_vault: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/approle')}}"
+    prefect_truenas: "{{ lookup('hashi_vault', 'secret=secret/data/truenas/ssh/prefect')}}"
 
   tasks:
     - name: Git checkout veloslab/prefect
@@ -33,6 +34,26 @@
         state: link
         mode: 0755
 
+    - name: Create directory for Chromium
+      ansible.builtin.file:
+        dest: 'veloslab/prefect/playwright'
+        owner: root
+        group: root
+        state: directory
+        mode: 0755
+
+    - name: Install Chromium for playwright
+      ansible.builtin.command:
+        cmd: /veloslab/python/prefect/bin/playwright install chromium
+      environment:
+        PLAYWRIGHT_BROWSERS_PATH: /veloslab/prefect/playwright
+
+          #    - name: Install Chrome for playwright
+          #ansible.builtin.command:
+          #cmd: /veloslab/python/prefect/bin/playwright install chrome --force
+          #environment:
+          #PLAYWRIGHT_BROWSERS_PATH: /veloslab/prefect/playwright
+
     - name: Create pth file for venv
       ansible.builtin.copy:
         dest: '/veloslab/python/prefect/lib/python{{ python_version }}/site-packages/prefect.pth'
@@ -40,49 +61,6 @@
         group: root
         mode: 0644
         content: '/veloslab/prefect/lib/'
-
-    - name: Install nfs-common and autofs
-      ansible.builtin.apt:
-        state: latest
-        update_cache: true
-        force_apt_get: true
-        pkg:
-          - nfs-common
-          - autofs
-
-    - name: Adding auto.prefect.nfs to /etc/auto.master
-      ansible.builtin.lineinfile:
-        path: /etc/auto.master
-        regexp: '^/- /etc/auto.prefect.nfs'
-        line: '/- /etc/auto.prefect.nfs'
-
-    - name: Create /etc/auto.prefect.nfs
-      ansible.builtin.copy:
-        content: |
-          /mnt/prefect/ -fstype=nfs4 storage.veloslab.lan:/mnt/storage/veloslab/prefect/
-        dest: /etc/auto.prefect.nfs
-        owner: root
-        group: root
-        mode: '0644'
-
-    - name: Reload autofs
-      ansible.builtin.systemd:
-        name: autofs
-        state: reloaded
-
-    - name: Restart autofs
-      ansible.builtin.systemd:
-        name: autofs
-        state: started
-
-    - name: Create prefect storage symbolic link
-      ansible.builtin.file:
-        src: /mnt/prefect/storage
-        dest: /veloslab/prefect/storage
-        owner: vls_prefect
-        group: vls-admins
-        state: link
-        mode: 0770
 
     - name: Create prefect config directory
       ansible.builtin.file:
@@ -92,15 +70,29 @@
         state: directory
         mode: 0775
 
+    - name: Create prefect ssh dir
+      ansible.builtin.file:
+        path: /home/vls_prefect/.ssh/
+        owner: vls_prefect
+        group: vls_prefect
+        state: directory
+        mode: 0775
+
+    - name: Create prefect truenas key
+      ansible.builtin.copy:
+        dest: /home/vls_prefect/.ssh/id_ed25519_truenas
+        owner: vls_prefect
+        group: vls_prefect
+        mode: 0600
+        content: "{{ prefect_truenas['private_key'] }}"
+
     - name: Deploy Prefect Agent
       include_role:
         name: veloslab.prefect.agent
       vars:
         prefect_venv: /veloslab/python/prefect
-        prefect_work_queue_name: "{{ ansible_hostname }}"
-        prefect_work_queue_id: >
-          "{{ lookup('hashi_vault',
-          'secret=secret/data/prefect/queues/{{ ansible_hostname }}')['key']}}"
+        prefect_work_pool: veloslab-remote
+        prefect_work_queue: default
         prefect_user: vls_prefect
         prefect_api_key: "{{ prefect_cloud['key'] }}"
         prefect_workspace: "{{ prefect_cloud['workspace'] }}"
@@ -108,4 +100,11 @@
           VAULT_ADDR: https://vault.veloslab.net
           VAULT_ROLE_ID: "{{ prefect_vault['role'] }}"
           VAULT_SECRET_ID: "{{ prefect_vault['secret'] }}"
+          PLAYWRIGHT_BROWSERS_PATH: /veloslab/prefect/playwright
       when: "'prefect' in ansible_hostname"
+
+    - name: Create cron to restart agent every 1 hours
+      ansible.builtin.cron:
+        name: "prefect agent restart"
+        minute: "11"
+        job: "/usr/bin/supervisorctl restart prefect-veloslab"

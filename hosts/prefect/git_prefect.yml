@@ -1,0 +1,38 @@
+---
+- hosts: all
+  become: true
+  vars:
+    python_version: '3.10'
+
+  tasks:
+    - name: Git checkout veloslab/prefect
+      ansible.builtin.git:
+        repo: 'https://github.com/veloslab/prefect.git'
+        dest: /veloslab/prefect/lib/
+
+    - name: Install Python
+      include_role:
+        name: veloslab.base.python
+
+    - name: Create prefect venv
+      ansible.builtin.pip:
+        requirements: /veloslab/prefect/lib/requirements.txt
+        virtualenv: '/veloslab/python/prefect{{ python_version }}'
+        virtualenv_command: 'python{{ python_version }} -m venv'
+
+    - name: Create a symbolic link
+      ansible.builtin.file:
+        src: '/veloslab/python/prefect{{ python_version }}'
+        dest: /veloslab/python/prefect
+        owner: root
+        group: root
+        state: link
+        mode: 0755
+
+    - name: Create pth file for venv
+      ansible.builtin.copy:
+        dest: '/veloslab/python/prefect/lib/python{{ python_version }}/site-packages/prefect.pth'
+        owner: root
+        group: root
+        mode: 0644
+        content: '/veloslab/prefect/lib/'

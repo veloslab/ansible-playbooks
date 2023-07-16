@@ -7,7 +7,6 @@
     python_version: '3.10'
     prefect_cloud: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/cloud')}}"
     prefect_vault: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/approle')}}"
-    prefect_truenas: "{{ lookup('hashi_vault', 'secret=secret/data/truenas/ssh/prefect')}}"
 
   tasks:
     - name: Git checkout veloslab/prefect
@@ -77,14 +76,6 @@
         group: vls_prefect
         state: directory
         mode: 0775
-
-    - name: Create prefect truenas key
-      ansible.builtin.copy:
-        dest: /home/vls_prefect/.ssh/id_ed25519_truenas
-        owner: vls_prefect
-        group: vls_prefect
-        mode: 0600
-        content: "{{ prefect_truenas['private_key'] }}"
 
     - name: Deploy Prefect Agent
       include_role:

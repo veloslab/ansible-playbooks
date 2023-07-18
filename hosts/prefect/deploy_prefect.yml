@@ -7,8 +7,20 @@
     python_version: '3.10'
     prefect_cloud: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/cloud')}}"
     prefect_vault: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/approle')}}"
+    veloslab_ca: "{{ lookup('hashi_vault', 'secret=secret/data/certificates/veloslab/ca')}}"
 
   tasks:
+    - name: Add Veloslab CA
+      ansible.builtin.copy:
+        dest: "/usr/local/share/ca-certificates/veloslab.crt"
+        owner: root
+        group: root
+        mode: 0644
+        content: "{{veloslab_ca['value']}}"
+
+    - name: Update CA Trust (Debian, Ubuntu)
+      ansible.builtin.command: update-ca-certificates
+
     - name: Git checkout veloslab/prefect
       ansible.builtin.git:
         repo: 'https://github.com/veloslab/prefect.git'

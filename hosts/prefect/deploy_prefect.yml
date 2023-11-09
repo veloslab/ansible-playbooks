@@ -94,7 +94,7 @@
         name: veloslab.prefect.agent
       vars:
         prefect_venv: /veloslab/python/prefect
-        prefect_work_pool: veloslab-remote
+        prefect_work_pool: veloslab-pool
         prefect_work_queue: default
         prefect_user: vls_prefect
         prefect_api_key: "{{ prefect_cloud['key'] }}"

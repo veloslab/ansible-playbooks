@@ -1,53 +1,28 @@
 ---
 - hosts: all
   become: true
-  roles:
-    - veloslab.base.packages
   vars:
-    python_version: '3.10'
     prefect_cloud: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/cloud')}}"
     prefect_vault: "{{ lookup('hashi_vault', 'secret=secret/data/prefect/approle')}}"
-    veloslab_ca: "{{ lookup('hashi_vault', 'secret=secret/data/certificates/veloslab/ca')}}"
+    python_version: 3.11
 
   tasks:
-    - name: Add Veloslab CA
-      ansible.builtin.copy:
-        dest: "/usr/local/share/ca-certificates/veloslab.crt"
-        owner: root
-        group: root
-        mode: 0644
-        content: "{{veloslab_ca['value']}}"
-
-    - name: Update CA Trust (Debian, Ubuntu)
-      ansible.builtin.command: update-ca-certificates
-
     - name: Git checkout veloslab/prefect
       ansible.builtin.git:
         repo: 'https://github.com/veloslab/prefect.git'
         dest: /veloslab/prefect/lib/
 
-    - name: Install Python
+    - name: Create Python Environment
       include_role:
-        name: veloslab.base.python
-
-    - name: Create prefect venv
-      ansible.builtin.pip:
-        requirements: /veloslab/prefect/lib/requirements.txt
-        virtualenv: '/veloslab/python/prefect{{ python_version }}'
-        virtualenv_command: 'python{{ python_version }} -m venv'
-
-    - name: Create a symbolic link
-      ansible.builtin.file:
-        src: '/veloslab/python/prefect{{ python_version }}'
-        dest: /veloslab/python/prefect
-        owner: root
-        group: root
-        state: link
-        mode: 0755
+        name: veloslab.base.python_venv
+      vars:
+        python_venv_name: prefect
+        python_venv_version: "{{python_version}}"
+        python_venv_requirements:  /veloslab/prefect/lib/requirements.txt
 
     - name: Create directory for Chromium
       ansible.builtin.file:
-        dest: 'veloslab/prefect/playwright'
+        dest: '/veloslab/prefect/playwright'
         owner: root
         group: root
         state: directory
@@ -106,7 +81,7 @@
           PLAYWRIGHT_BROWSERS_PATH: /veloslab/prefect/playwright
       when: "'prefect' in ansible_hostname"
 
-    - name: Create cron to restart agent every 1 hours
+    - name: Create cron to restart agent every hour
       ansible.builtin.cron:
         name: "prefect agent restart"
         minute: "11"

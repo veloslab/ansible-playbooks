@@ -1,0 +1,43 @@
+- hosts: all
+  vars:
+    vault_jumpcloud_ldap: "{{ lookup('community.hashi_vault.vault_kv2_get', 'jumpcloud/ldap').secret }}"
+    vault_veloslab_ca: "{{ lookup('community.hashi_vault.vault_kv2_get', 'certificates/veloslab/ca').secret }}"
+
+  roles:
+    - role: veloslab.base.packages
+
+    - role: veloslab.base.python_venv
+      python_venv_name: veloslab
+      python_venv_version: 3.12
+      python_venv_packages:
+        - ansible==9.3.0
+        - hvac==2.1.0
+        - requests
+
+    - role: veloslab.base.jumpcloud_sssd
+      jumpcloud_sudoers:
+        - vls-admins
+      jumpcloud_bind_user: "{{ vault_jumpcloud_ldap.bind_username }}"
+      jumpcloud_bind_password: "{{ vault_jumpcloud_ldap.bind_password }}"
+      jumpcloud_organization: "{{ vault_jumpcloud_ldap.organization }}"
+
+
+  tasks:
+    - name: Add Veloslab CA
+      ansible.builtin.copy:
+        dest: "/usr/local/share/ca-certificates/veloslab_root.crt"
+        owner: root
+        group: root
+        mode: 0644
+        content: vault_veloslab_ca.root
+
+    - name: Add Veloslab CA Intermediate
+      ansible.builtin.copy:
+        dest: "/usr/local/share/ca-certificates/veloslab_intermediate.crt"
+        owner: root
+        group: root
+        mode: 0644
+        content: vault_veloslab_ca.intermediate
+
+    - name: Update CA Trust (Debian, Ubuntu)
+      ansible.builtin.command: update-ca-certificates
